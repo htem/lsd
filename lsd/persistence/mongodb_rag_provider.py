@@ -175,8 +175,14 @@ class MongoDbRagProvider(SharedRagProvider):
         self.nodes = None
         self.edges = None
         self.database = None
-        self.client.close()
-        self.client = None
+        try:
+            # somehow close() can fail sporadically
+            # with error being self.client == None
+            self.client.close()
+            self.client = None
+        except:
+            pass
+
 
     def __create_collections(self):
 
