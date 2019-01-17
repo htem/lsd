@@ -212,3 +212,7 @@ class Rag(skimage.future.graph.RAG):
                 new_values.append(label)
 
         array[:] = replace_values(array, old_values, new_values)
+
+    def relabel(array, old_values, new_values):
+
+        array[:] = replace_values(array, old_values, new_values)

@@ -4,6 +4,7 @@ import logging
 import numpy as np
 import daisy
 import waterz
+from pymongo.errors import BulkWriteError
 
 logger = logging.getLogger(__name__)
 
@@ -171,4 +172,9 @@ def agglomerate_in_block(
 
     # write back results (only within write_roi)
     logger.debug("writing to DB...")
-    rag.sync_edges(block.write_roi)
+    try:
+        rag.sync_edges(block.write_roi)
+    except BulkWriteError as e:
+        # commonly happens when processing the same block multiple times
+        pass
+
