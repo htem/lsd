@@ -359,3 +359,11 @@ class MongoDbRagProvider(SharedRagProvider):
         for key in keys:
             del dictionary[key]
         return dictionary
+
+    def get_db(self):
+        self.__connect()
+        self.__open_db()
+        return self.database
+
+    def disconnect(self):
+        return self.__disconnect()
