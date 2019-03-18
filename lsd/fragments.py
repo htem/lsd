@@ -23,11 +23,20 @@ def watershed(lsds, sigma, return_seeds=False, return_distances=False):
 
     return ret
 
+def get_seeds(boundary,next_id):
+    distance = mahotas.distance(boundary<0.5)
+    maxima = mahotas.regmax(distance)
+    seeds, num_seeds = mahotas.label(maxima)
+    seeds += next_id
+    seeds[seeds==next_id] = 0
+    return seeds, num_seeds
+
 def watershed_from_affinities(
         affs,
         fragments_in_xy=False,
         return_seeds=False,
-        epsilon_agglomerate=0):
+        epsilon_agglomerate=0,
+        use_mahotas = True):
     '''Extract initial fragments from affinities using a watershed
     transform. Returns the fragments and the maximal ID in it.'''
 
@@ -39,7 +48,6 @@ def watershed_from_affinities(
         max_affinity_value = 1.0
 
     if fragments_in_xy:
-
         mean_affs = 0.5*(affs[1] + affs[2])
         depth = mean_affs.shape[0]
 
@@ -49,14 +57,21 @@ def watershed_from_affinities(
 
         id_offset = 0
         for z in range(depth):
+            if use_mahotas:
+                inv_affs = 1.0 - mean_affs
+                seeds, num_seeds = get_seeds(inv_affs[z], next_id=id_offset)
+                f = mahotas.cwatershed(inv_affs[z], seeds)
+                ret = (f, id_offset + num_seeds)
+                if return_seeds:
+                    ret += (seeds, )
+            else:
+                boundary_mask = mean_affs[z]>0.5*max_affinity_value
+                boundary_distances = distance_transform_edt(boundary_mask)
 
-            boundary_mask = mean_affs[z]>0.5*max_affinity_value
-            boundary_distances = distance_transform_edt(boundary_mask)
-
-            ret = watershed_from_boundary_distance(
-                boundary_distances,
-                return_seeds=return_seeds,
-                id_offset=id_offset)
+                ret = watershed_from_boundary_distance(
+                    boundary_distances,
+                    return_seeds=return_seeds,
+                    id_offset=id_offset)
 
             fragments[z] = ret[0]
             if return_seeds:
@@ -92,6 +107,10 @@ def watershed_from_affinities(
                 return_merge_history=False,
                 return_region_graph=False)
         fragments[:] = next(generator)
+
+        # cleanup generator
+        for _ in generator:
+            pass
 
     return ret
 
