@@ -17,7 +17,8 @@ def parallel_watershed(
         num_workers,
         fragments_in_xy=False,
         epsilon_agglomerate=0,
-        mask=None):
+        mask=None,
+        use_mahotas=True):
     '''Extract fragments from affinities using watershed.
 
     Args:
@@ -89,7 +90,8 @@ def parallel_watershed(
             fragments_out,
             fragments_in_xy,
             epsilon_agglomerate,
-            mask),
+            mask,
+            use_mahotas),
         lambda b: block_done(b, rag_provider),
         num_workers=num_workers,
         read_write_conflict=False,
@@ -106,7 +108,8 @@ def watershed_in_block(
         fragments_out,
         fragments_in_xy,
         epsilon_agglomerate,
-        mask):
+        mask,
+        use_mahotas=True):
 
     total_roi = affs.roi
 
@@ -125,7 +128,8 @@ def watershed_in_block(
     fragments_data, n = watershed_from_affinities(
         affs.data,
         fragments_in_xy=fragments_in_xy,
-        epsilon_agglomerate=epsilon_agglomerate)
+        epsilon_agglomerate=epsilon_agglomerate,
+        use_mahotas=use_mahotas)
     if mask is not None:
         fragments_data *= mask.astype(np.uint64)
     fragments = daisy.Array(fragments_data, affs.roi, affs.voxel_size)
