@@ -18,7 +18,7 @@ def parallel_watershed(
         fragments_in_xy=False,
         epsilon_agglomerate=0,
         mask=None,
-        use_mahotas=True):
+        use_mahotas=False):
     '''Extract fragments from affinities using watershed.
 
     Args:
@@ -109,7 +109,7 @@ def watershed_in_block(
         fragments_in_xy,
         epsilon_agglomerate,
         mask,
-        use_mahotas=True):
+        use_mahotas=False):
 
     total_roi = affs.roi
 
