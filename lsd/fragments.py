@@ -36,7 +36,7 @@ def watershed_from_affinities(
         fragments_in_xy=False,
         return_seeds=False,
         epsilon_agglomerate=0,
-        use_mahotas=True):
+        use_mahotas = False):
     '''Extract initial fragments from affinities using a watershed
     transform. Returns the fragments and the maximal ID in it.'''
 
@@ -58,7 +58,7 @@ def watershed_from_affinities(
         id_offset = 0
         for z in range(depth):
             if use_mahotas:
-                inv_affs = 1.0 - mean_affs
+                inv_affs = (1.0 - mean_affs)/max_affinitiy_value
                 seeds, num_seeds = get_seeds(inv_affs[z], next_id=id_offset)
                 f = mahotas.cwatershed(inv_affs[z], seeds)
                 ret = (f, id_offset + num_seeds)
