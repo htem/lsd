@@ -1,11 +1,9 @@
 from networkx import DiGraph
 
 cimport cython
-from libc.stdint cimport uint16_t, uint32_t, uint64_t
+from libc.stdint cimport uint16_t, uint32_t
 from libc.string cimport memset
 from cpython.mem cimport PyMem_Malloc, PyMem_Free
-from cpython cimport array
-import numpy as np
 
 
 cdef packed struct CythonNode:
