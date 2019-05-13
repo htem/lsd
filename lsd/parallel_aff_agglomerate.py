@@ -1,12 +1,13 @@
-from .labels import relabel
 from .merge_tree import MergeTree
+from funlib.segment.arrays import relabel
+import daisy
 import logging
 import numpy as np
-import daisy
+import time
 import waterz
-from pymongo.errors import BulkWriteError
 
 logger = logging.getLogger(__name__)
+
 
 def parallel_aff_agglomerate(
         affs,
@@ -143,10 +144,14 @@ def agglomerate_in_block(
         u, v = fragment_relabel_map[edge['u']], fragment_relabel_map[edge['v']]
         # this might overwrite already existing edges from neighboring blocks,
         # but that's fine, we only write attributes for edges within write_roi
-        rag.add_edge(u, v, {'merge_score': None, 'agglomerated': True})
+        rag.add_edge(u, v, merge_score=None, agglomerated=True)
 
     # agglomerate fragments using affs
     _, merge_history, _ = next(generator)
+
+    # cleanup generator
+    for _, _, _ in generator:
+        pass
 
     # create a merge tree from the merge history
     merge_tree = MergeTree(fragment_relabel_map)
@@ -161,6 +166,7 @@ def agglomerate_in_block(
 
     # mark edges in original RAG with score at time of merging
     logger.debug("marking merged edges...")
+    start = time.time()
     num_merged = 0
     for u, v, data in rag.edges(data=True):
         merge_score = merge_tree.find_merge(u, v)
@@ -168,13 +174,9 @@ def agglomerate_in_block(
         if merge_score is not None:
             num_merged += 1
 
-    logger.info("merged %d edges", num_merged)
+    logger.info("merged %d edges in %.3fs", num_merged, (time.time() - start))
 
     # write back results (only within write_roi)
-    logger.debug("writing to DB...")
-    try:
-        rag.sync_edges(block.write_roi)
-    except BulkWriteError as e:
-        # commonly happens when processing the same block multiple times
-        pass
-
+    logger.info("writing to DB...")
+    rag.write_edges(block.write_roi)
+    logger.info("finished writing to DB...")
