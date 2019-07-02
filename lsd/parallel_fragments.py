@@ -1,6 +1,6 @@
 from __future__ import division
 from .fragments import watershed_from_affinities
-from funlib.segment.arrays import relabel
+from funlib.segment.arrays import relabel, replace_values
 from scipy.ndimage.measurements import center_of_mass
 import daisy
 import logging
@@ -128,6 +128,11 @@ def block_done(block, rag_provider):
 
     return rag_provider.num_nodes(block.write_roi) > 0
 
+
+def to_pix(coords):
+    return [coords[2]/4, coords[1]/4, coords[0]/40]
+
+
 def watershed_in_block(
         affs,
         block,
@@ -135,7 +140,8 @@ def watershed_in_block(
         fragments_out,
         fragments_in_xy,
         epsilon_agglomerate,
-        mask):
+        mask,
+        myelin_ds=None):
 
     total_roi = affs.roi
 
@@ -176,13 +182,10 @@ def watershed_in_block(
     size_of_voxel = daisy.Roi((0,)*affs.roi.dims(), affs.voxel_size).size()
     num_voxels_in_block = block.requested_write_roi.size()//size_of_voxel
     id_bump = block.block_id*num_voxels_in_block
-    logger.debug("bumping fragment IDs by %i", id_bump)
+    logger.info("bumping fragment IDs by %i", id_bump)
+    # print(fragments.data[fragments.data>0])
     fragments.data[fragments.data>0] += id_bump
     fragment_ids = range(id_bump + 1, id_bump + 1 + n)
-
-    # store fragments
-    logger.debug("writing fragments to %s", block.write_roi)
-    fragments_out[block.write_roi] = fragments
 
     # following only makes a difference if fragments were found
     if n == 0:
@@ -196,6 +199,78 @@ def watershed_in_block(
             center_of_mass(fragments.data, fragments.data, fragment_ids))
         if not np.isnan(center[0])
     }
+
+    # post process myelin by setting these fragments to 0
+    # and removing these from fragment_ids
+    # TODO: setting affs to/from these fragments to 0??
+
+    # This is the value that a fragment center is evaluated on
+    MYELIN_PRED_LOW_THRESHOLD_CENTER = 48
+
+    if myelin_ds is not None:
+        myelin_fragments = []
+        # myelin_ds.materialize()
+        myelin_arr = myelin_ds[block.write_roi].to_ndarray()
+        for node, c in fragment_centers.items():
+            # quick check
+            if myelin_ds[c] < MYELIN_PRED_LOW_THRESHOLD_CENTER:
+                myelin_fragments.append(node)
+
+            # slow check if center lies outside the fragment
+            elif myelin_ds[c] < 225 or fragments[c] != node:
+                # mean = np.ma.array(
+                #     myelin_arr,
+                #     mask=(fragments.data != node)).mean()
+                # if mean < 48:
+                #     myelin_fragments.append(node)
+
+                arr = np.ma.array(
+                    myelin_arr,
+                    mask=(fragments.data != node)).compressed()
+                quantile = np.quantile(arr, 0.15)
+                if quantile < 150:
+                    myelin_fragments.append(node)
+
+            # if node in [161483646, 161483646]:
+            #     # print("Node: %d" % node)
+            #     # print("Center: %s" % c)
+            #     # print("myelin_ds[c]: %s" % myelin_ds[c])
+            #     # print("fragments[c]: %s" % fragments[c])
+            #     arr = np.ma.array(
+            #         myelin_arr,
+            #         mask=(fragments.data != node)).compressed()
+            #     quantile = np.quantile(arr, .15)
+            #     print("Q at .15 for %d is %s" % (node, quantile))
+            #     quantile = np.quantile(arr, .30)
+            #     print("Q at .30 for %d is %s" % (node, quantile))
+            #     quantile = np.quantile(arr, .40)
+            #     print("Q at .40 for %d is %s" % (node, quantile))
+            #     quantile = np.quantile(arr, .85)
+            #     print("Q at .85 for %d is %s" % (node, quantile))
+            #     print(arr)
+
+                # else:
+                #     print("Fragment %d at %s: mean %f" % (node, to_pix(c), mean))
+                #     if fragments[c] == node:
+                #         print("center val: %d" % myelin_ds[c])
+
+            # else:
+            #     print("Skipped fragment %d at %s: val %f" % (node, to_pix(c), myelin_ds[c]))
+
+        for f in myelin_fragments:
+            fragment_centers.pop(f)
+
+        # relabel fragments
+        replace_vals = [0 for i in myelin_fragments]
+        replace_values(
+            fragments.data,
+            myelin_fragments,
+            replace_vals,
+            fragments.data)
+
+    # store fragments
+    logger.debug("writing fragments to %s", block.write_roi)
+    fragments_out[block.write_roi] = fragments
 
     # store nodes
     rag = rag_provider[block.write_roi]
